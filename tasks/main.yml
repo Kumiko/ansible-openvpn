@@ -137,9 +137,9 @@
     - configuration
 
 - name: start openvpn service
-  service: >
-    name=openvpn@openvpn
-    state=started
+  service:
+    name: openvpn@openvpn
+    state: started
   become: yes
   tags:
     - openvpn
@@ -147,7 +147,7 @@
 
 - name: fetch certificates
   fetch:
-    dest: "/Users/hagbard/Projects/fileserver/certificates/{{ inventory_hostname }}/"
+    dest: "{{ playbook_dir }}/certificates/{{ inventory_hostname }}/"
     src: "{{ openvpn_easy_rsa_dir }}/keys/{{ item }}"
     flat: yes
   with_items:
@@ -159,7 +159,7 @@
 
 - name: fetch client certificates
   fetch:
-    dest: "/Users/hagbard/Projects/fileserver/certificates/{{ inventory_hostname }}/"
+    dest: "{{ playbook_dir }}/certificates/{{ inventory_hostname }}/"
     src: "{{ openvpn_easy_rsa_dir }}/keys/{{ item[0] }}.{{ item[1] }}"
     flat: yes
   with_nested:
