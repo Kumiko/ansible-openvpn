@@ -1,0 +1,13 @@
+#!/bin/bash
+# roles/openvpn/templates/revoke-client-certificate.sh.j2
+# {{ ansible_managed }}
+
+cd {{ openvpn_easy_rsa_dir }}
+
+source ./vars
+
+./revoke-full $1
+
+touch {{ openvpn_easy_rsa_dir }}/keys/$1.revoked
+
+cp {{ openvpn_easy_rsa_dir }}/keys/crl.pem {{ openvpn_dir }}

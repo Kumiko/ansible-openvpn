@@ -1,0 +1,16 @@
+#!/bin/bash
+# roles/openvpn/templates/create-server-certificates.sh.j2
+# {{ ansible_managed }}
+
+cd {{ openvpn_easy_rsa_dir }}
+
+source ./vars
+
+./build-dh
+
+./pkitool --initca
+./pkitool --server server
+
+cd keys
+
+openvpn --genkey --secret ta.key

@@ -1,0 +1,172 @@
+# roles/openvpn/tasks/main.yml
+---
+- name: install packages
+  apt:
+    name: "{{ item }}"
+    update_cache: yes
+  with_items: "{{ openvpn_pkgs }}"
+  become: yes
+  tags:
+    - openvpn
+    - installation
+
+- name: create easy-rsa directory
+  shell: >
+    make-cadir {{ openvpn_easy_rsa_dir }}
+  args:
+    creates: "{{ openvpn_easy_rsa_dir }}/vars"
+  become: yes
+  tags:
+    - openvpn
+    - installation
+
+- name: create keys directory
+  file:
+    path: "{{ openvpn_easy_rsa_dir }}/keys"
+    state: directory
+  become: yes
+  tags:
+    - openvpn
+    - installation
+
+- name: copy scripts
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ openvpn_easy_rsa_dir }}/{{ item }}"
+    mode: 0755
+  with_items:
+    - create-client-certificate.sh
+    - revoke-client-certificate.sh
+    - create-server-certificates.sh
+  become: yes
+  tags:
+    - openvpn
+    - configuration
+
+- name: set certificate values
+  lineinfile:
+    dest: "{{ openvpn_easy_rsa_dir }}/vars"
+    line: "{{ item.line }}"
+    regexp: "{{ item.regexp }}"
+    insertafter: no
+    backrefs: yes
+  with_items:
+    - regexp: 'export KEY_COUNTRY="US"'
+      line: 'export KEY_COUNTRY="{{ openvpn_key_country }}"'
+    - regexp: 'export KEY_PROVINCE="CA"'
+      line: 'export KEY_PROVINCE="{{ openvpn_key_province }}"'
+    - regexp: 'export KEY_CITY="SanFrancisco"'
+      line: 'export KEY_CITY="{{ openvpn_key_city }}"'
+    - regexp: 'export KEY_ORG="Fort-Funston"'
+      line: 'export KEY_ORG="{{ openvpn_key_org }}"'
+    - regexp: 'export KEY_EMAIL="me@myhost.mydomain"'
+      line: 'export KEY_EMAIL="{{ openvpn_key_email }}"'
+    - regexp: 'export KEY_OU="MyOrganizationalUnit"'
+      line: 'export KEY_OU="{{ openvpn_key_ou }}"'
+  become: yes
+  tags:
+    - openvpn
+    - configuration
+
+- name: create server certificate
+  command: >
+    /bin/bash {{ openvpn_easy_rsa_dir }}/create-server-certificates.sh
+  args:
+    creates: "{{ openvpn_easy_rsa_dir }}/keys/ta.key"
+  become: yes
+  tags:
+    - openvpn
+    - configuration
+
+- name: copy certificate files
+  copy:
+    src: "{{ openvpn_easy_rsa_dir }}/keys/{{ item }}"
+    dest: "{{ openvpn_dir }}"
+    remote_src: True
+  with_items:
+    - server.crt
+    - server.key
+    - ca.crt
+    - dh2048.pem
+    - ta.key
+  become: yes
+  tags:
+    - openvpn
+    - configuration
+
+- name: create server configuration
+  template:
+    src: "openvpn.conf.j2"
+    dest: "{{ openvpn_dir }}/openvpn.conf"
+  become: yes
+  tags:
+    - openvpn
+    - configuration
+
+- name: create client certificates
+  command: >
+    /bin/bash {{ openvpn_easy_rsa_dir }}/create-client-certificate.sh "{{ item.key }}"
+  args:
+    creates: "{{ openvpn_easy_rsa_dir }}/keys/{{ item.key }}.key"
+  with_dict: "{{ openvpn_users }}"
+  become: yes
+  tags:
+    - openvpn
+    - configuration
+
+- name: create revoke file
+  command: >
+    /bin/bash {{ openvpn_easy_rsa_dir }}/revoke-client-certificate.sh "revoke"
+  args:
+    creates: "{{ openvpn_easy_rsa_dir }}/keys/revoke.revoked"
+  become: yes
+  tags:
+    - openvpn
+    - configuration
+
+- name: revoke client certificates
+  command: >
+    /bin/bash {{ openvpn_easy_rsa_dir }}/revoke-client-certificate.sh "{{ item.key }}"
+  args:
+    creates: "{{ openvpn_easy_rsa_dir }}/keys/{{ item.key }}.revoked"
+  with_dict: "{{ openvpn_users }}"
+  when: (item.value.state | default('present')) == "absent"
+  become: yes
+  tags:
+    - openvpn
+    - configuration
+
+- name: start openvpn service
+  service: >
+    name=openvpn@openvpn
+    state=started
+  become: yes
+  tags:
+    - openvpn
+    - service
+
+- name: fetch certificates
+  fetch:
+    dest: "/Users/hagbard/Projects/fileserver/certificates/{{ inventory_hostname }}/"
+    src: "{{ openvpn_easy_rsa_dir }}/keys/{{ item }}"
+    flat: yes
+  with_items:
+    - ca.crt
+  become: yes
+  tags:
+    - openvpn
+    - configuration
+
+- name: fetch client certificates
+  fetch:
+    dest: "/Users/hagbard/Projects/fileserver/certificates/{{ inventory_hostname }}/"
+    src: "{{ openvpn_easy_rsa_dir }}/keys/{{ item[0] }}.{{ item[1] }}"
+    flat: yes
+  with_nested:
+    - "{{ openvpn_users }}"
+    - [ "crt", "key" ]
+  when: (openvpn_users[item[0]].state | default('present')) != 'absent'
+  become: yes
+  tags:
+    - openvpn
+    - configuration

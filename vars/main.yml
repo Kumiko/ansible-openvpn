@@ -1,0 +1,5 @@
+# roles/openvpn/vars/main.yml
+---
+openvpn_pkgs:
+  - openvpn
+  - easy-rsa

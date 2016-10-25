@@ -1,0 +1,9 @@
+#!/bin/bash
+# roles/openvpn/templates/create-client-certificate.sh.j2
+# {{ ansible_managed }}
+
+cd {{ openvpn_easy_rsa_dir }}
+
+source ./vars
+
+./pkitool $1
