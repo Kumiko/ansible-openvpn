@@ -6,6 +6,8 @@ cd {{ openvpn_easy_rsa_dir }}
 
 source ./vars
 
+./clean-all
+
 ./build-dh
 
 ./pkitool --initca
